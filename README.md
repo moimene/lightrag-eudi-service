@@ -137,3 +137,12 @@ Añadir nodo HTTP Request después de "Merge Data":
 - **Body**: JSON con `text` y `metadata`
 
 > ⚠️ **Importante**: Configura "Split In Batches" con Batch Size = 1 para evitar corrupción del grafo por escrituras concurrentes.
+
+### Timeouts Recomendados
+
+| Endpoint | Timeout | Motivo |
+|----------|---------|--------|
+| `/ingest` | 60s | Retorna rápido (background) |
+| `/query` | **300s** | LightRAG puede tardar 20-60s en Hybrid Search |
+
+En n8n: HTTP Request → Settings → Timeout = 300000 (ms)
