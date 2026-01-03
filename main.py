@@ -10,6 +10,7 @@ Vectors are stored in Pinecone using namespace separation.
 
 import os
 import sys
+import asyncio
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -48,6 +49,7 @@ try:
     from lightrag.utils import EmbeddingFunc
     from lightrag.base import QueryParam
     from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+    from lightrag.kg.shared_storage import initialize_pipeline_status
     import numpy as np
     
     LightRAG = LR
@@ -165,6 +167,43 @@ def get_rag_instance():
         return None
 
 
+# Async initialization state
+_rag_init_lock = None
+_rag_initialized = False
+
+
+async def ensure_rag_initialized():
+    """
+    Ensure LightRAG storages/pipeline are initialized (required by LightRAG 1.4.9rc4).
+    Must be called before insert/query.
+    """
+    global _rag_instance, _rag_initialized, _rag_init_lock
+
+    rag = get_rag_instance()
+    if rag is None:
+        return None
+
+    # Create lock lazily (needs running loop)
+    if _rag_init_lock is None:
+        _rag_init_lock = asyncio.Lock()
+
+    if _rag_initialized:
+        return rag
+
+    async with _rag_init_lock:
+        if _rag_initialized:
+            return rag
+
+        # REQUIRED initialization per LightRAG 1.4.9rc4
+        await rag.initialize_storages()
+        await initialize_pipeline_status()
+
+        _rag_initialized = True
+        print("[INFO] LightRAG storages/pipeline initialized")
+
+    return rag
+
+
 # =============================================================================
 # Request/Response Models
 # =============================================================================
@@ -214,9 +253,9 @@ class QueryResponse(BaseModel):
 async def process_ingest(text: str, metadata: Dict[str, Any]) -> None:
     """
     Background task to ingest document into knowledge graph.
-    Uses run_in_threadpool to avoid async event loop conflicts.
+    Uses async ainsert for LightRAG 1.4.9rc4 compatibility.
     """
-    rag = get_rag_instance()
+    rag = await ensure_rag_initialized()
     if rag is None:
         print("[ERROR] Cannot process ingestion - RAG not available")
         return
@@ -239,8 +278,8 @@ async def process_ingest(text: str, metadata: Dict[str, Any]) -> None:
         
         enriched_text = context_prefix + text if context_prefix else text
         
-        # Insert into LightRAG - run in threadpool to avoid event loop conflict
-        await run_in_threadpool(rag.insert, enriched_text)
+        # Use async insert (required by LightRAG 1.4.9rc4)
+        await rag.ainsert(enriched_text)
         
         elapsed = (datetime.utcnow() - start_time).total_seconds()
         print(f"[INGEST COMPLETE] {filename} processed in {elapsed:.1f}s")
@@ -302,7 +341,7 @@ async def ingest_endpoint(req: IngestRequest, background_tasks: BackgroundTasks)
 @app.post("/query", response_model=QueryResponse)
 async def query_endpoint(req: QueryRequest):
     """Query the knowledge graph."""
-    rag = get_rag_instance()
+    rag = await ensure_rag_initialized()
     if rag is None:
         raise HTTPException(
             status_code=503,
@@ -319,11 +358,11 @@ async def query_endpoint(req: QueryRequest):
         # Build QueryParam object (LightRAG expects param.mode attribute, not dict)
         qp = QueryParam(mode=req.mode)
         
-        # Run query in threadpool to avoid 'event loop already running' error
-        answer = await run_in_threadpool(lambda: rag.query(req.query, param=qp))
+        # Use async query (required by LightRAG 1.4.9rc4)
+        answer = await rag.aquery(req.query, param=qp)
         
         if answer is None:
-            raise HTTPException(status_code=500, detail="Query returned None")
+            raise HTTPException(status_code=500, detail="Query returned None - graph may be empty")
         
         # Ensure answer is string
         if not isinstance(answer, str):
