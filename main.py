@@ -15,6 +15,7 @@ from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -209,9 +210,10 @@ class QueryResponse(BaseModel):
 # Background Task: Document Ingestion
 # =============================================================================
 
-def process_ingest(text: str, metadata: Dict[str, Any]) -> None:
+async def process_ingest(text: str, metadata: Dict[str, Any]) -> None:
     """
     Background task to ingest document into knowledge graph.
+    Uses run_in_threadpool to avoid async event loop conflicts.
     """
     rag = get_rag_instance()
     if rag is None:
@@ -236,8 +238,8 @@ def process_ingest(text: str, metadata: Dict[str, Any]) -> None:
         
         enriched_text = context_prefix + text if context_prefix else text
         
-        # Insert into LightRAG
-        rag.insert(enriched_text)
+        # Insert into LightRAG - run in threadpool to avoid event loop conflict
+        await run_in_threadpool(rag.insert, enriched_text)
         
         elapsed = (datetime.utcnow() - start_time).total_seconds()
         print(f"[INGEST COMPLETE] {filename} processed in {elapsed:.1f}s")
@@ -313,7 +315,8 @@ async def query_endpoint(req: QueryRequest):
         )
     
     try:
-        answer = rag.query(req.query, param={"mode": req.mode})
+        # Run query in threadpool to avoid 'event loop already running' error
+        answer = await run_in_threadpool(rag.query, req.query, {"mode": req.mode})
         return QueryResponse(answer=answer, mode=req.mode)
     except Exception as e:
         raise HTTPException(
