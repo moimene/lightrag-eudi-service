@@ -316,7 +316,10 @@ async def query_endpoint(req: QueryRequest):
     
     try:
         # Run query in threadpool to avoid 'event loop already running' error
-        answer = await run_in_threadpool(rag.query, req.query, {"mode": req.mode})
+        # Use lambda to pass param as keyword argument
+        answer = await run_in_threadpool(
+            lambda: rag.query(req.query, param={"mode": req.mode})
+        )
         return QueryResponse(answer=answer, mode=req.mode)
     except Exception as e:
         raise HTTPException(
