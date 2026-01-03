@@ -46,6 +46,7 @@ embedding_func = None
 try:
     from lightrag import LightRAG as LR
     from lightrag.utils import EmbeddingFunc
+    from lightrag.base import QueryParam
     from lightrag.llm.openai import openai_complete_if_cache, openai_embed
     import numpy as np
     
@@ -315,12 +316,22 @@ async def query_endpoint(req: QueryRequest):
         )
     
     try:
+        # Build QueryParam object (LightRAG expects param.mode attribute, not dict)
+        qp = QueryParam(mode=req.mode)
+        
         # Run query in threadpool to avoid 'event loop already running' error
-        # Use lambda to pass param as keyword argument
-        answer = await run_in_threadpool(
-            lambda: rag.query(req.query, param={"mode": req.mode})
-        )
+        answer = await run_in_threadpool(lambda: rag.query(req.query, param=qp))
+        
+        if answer is None:
+            raise HTTPException(status_code=500, detail="Query returned None")
+        
+        # Ensure answer is string
+        if not isinstance(answer, str):
+            answer = "".join(list(answer))
+        
         return QueryResponse(answer=answer, mode=req.mode)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
