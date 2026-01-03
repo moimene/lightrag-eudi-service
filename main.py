@@ -39,15 +39,47 @@ NAMESPACE_CHUNKS = os.getenv("PINECONE_NS_CHUNKS", "liquid_chunks")
 
 LIGHTRAG_AVAILABLE = False
 LightRAG = None
-gpt_4o_mini_complete = None
-openai_embedding = None
+llm_model_func = None
+embedding_func = None
 
 try:
     from lightrag import LightRAG as LR
-    from lightrag.llm import gpt_4o_mini_complete as gpt_complete, openai_embedding as oai_embed
+    from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+    from lightrag.utils import wrap_embedding_func_with_attrs
+    import numpy as np
+    
     LightRAG = LR
-    gpt_4o_mini_complete = gpt_complete
-    openai_embedding = oai_embed
+    
+    # Create async LLM function for OpenAI
+    async def llm_func(
+        prompt, system_prompt=None, history_messages=[], 
+        keyword_extraction=False, **kwargs
+    ) -> str:
+        return await openai_complete_if_cache(
+            "gpt-4o-mini",
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            api_key=os.getenv("OPENAI_API_KEY"),
+            **kwargs
+        )
+    
+    # Create embedding function with correct attributes
+    @wrap_embedding_func_with_attrs(
+        embedding_dim=1536, 
+        max_token_size=8192, 
+        model_name="text-embedding-3-small"
+    )
+    async def embed_func(texts: list) -> np.ndarray:
+        return await openai_embed.func(
+            texts,
+            model="text-embedding-3-small",
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+    
+    llm_model_func = llm_func
+    embedding_func = embed_func
+    
     LIGHTRAG_AVAILABLE = True
     print("[INFO] LightRAG imported successfully")
 except ImportError as e:
@@ -116,8 +148,8 @@ def get_rag_instance():
         # Using default nano-vectordb for now (can add Pinecone later)
         _rag_instance = LightRAG(
             working_dir=WORKDIR,
-            llm_model_func=gpt_4o_mini_complete,
-            embedding_func=openai_embedding,
+            llm_model_func=llm_model_func,
+            embedding_func=embedding_func,
         )
         
         print("[INFO] LightRAG instance initialized successfully")
