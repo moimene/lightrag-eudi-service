@@ -13,8 +13,8 @@ n8n (Pinecone Assistant UNIFICADO)
     └── Vía B: LightRAG Service (Profunda/Conceptual)  ← Este servicio
         ├── Extracción de Entidades (LLM)
         ├── Extracción de Relaciones (LLM)
-        ├── Construcción de Grafo
-        └── Vectorización en Pinecone (namespaces separados)
+        ├── Construcción de Grafo (NetworkX)
+        └── Vectorización local (nano-vectordb)
 ```
 
 ## 🚀 Despliegue en Railway
@@ -31,14 +31,10 @@ railway up
 
 En el dashboard de Railway, añadir:
 
-| Variable | Descripción |
-|----------|-------------|
-| `OPENAI_API_KEY` | API key de OpenAI para LLM |
-| `PINECONE_API_KEY` | API key de Pinecone |
-| `PINECONE_INDEX_NAME` | Nombre del índice (ej: `liquid-graph`) |
-| `PINECONE_NS_ENTITIES` | Namespace para entidades (default: `liquid_entities`) |
-| `PINECONE_NS_RELATIONS` | Namespace para relaciones (default: `liquid_relations`) |
-| `PINECONE_NS_CHUNKS` | Namespace para chunks (default: `liquid_chunks`) |
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `OPENAI_API_KEY` | API key de OpenAI para LLM | ✅ |
+| `SERVICE_API_KEY` | API key para autenticar peticiones | ✅ |
 
 ### 3. Montar Volumen (CRÍTICO)
 
@@ -49,10 +45,18 @@ En el dashboard de Railway, añadir:
 
 > ⚠️ **Sin volumen, el grafo se pierde en cada deploy**
 
+## 🔐 Autenticación
+
+Todos los endpoints `/ingest` y `/query` requieren el header `x-api-key`:
+
+```bash
+-H "x-api-key: tu-api-key"
+```
+
 ## 📡 Endpoints
 
 ### `GET /health`
-Health check del servicio.
+Health check del servicio (sin auth).
 
 ```bash
 curl https://tu-app.up.railway.app/health
@@ -64,6 +68,7 @@ Ingestar documento en el grafo. Retorna inmediatamente, procesa en background.
 ```bash
 curl -X POST https://tu-app.up.railway.app/ingest \
   -H "Content-Type: application/json" \
+  -H "x-api-key: tu-api-key" \
   -d '{
     "text": "El EUDI Wallet es una cartera de identidad digital europea...",
     "metadata": {
@@ -81,6 +86,7 @@ Consultar el grafo de conocimiento.
 ```bash
 curl -X POST https://tu-app.up.railway.app/query \
   -H "Content-Type: application/json" \
+  -H "x-api-key: tu-api-key" \
   -d '{
     "query": "¿Cuáles son los requisitos de seguridad del EUDI Wallet?",
     "mode": "hybrid"
@@ -104,8 +110,7 @@ pip install -r requirements.txt
 
 # Configurar variables
 export OPENAI_API_KEY="sk-..."
-export PINECONE_API_KEY="..."
-export PINECONE_INDEX_NAME="liquid-graph"
+export SERVICE_API_KEY="tu-clave-secreta"
 export LIGHTRAG_WORKDIR="./data"
 
 # Ejecutar
@@ -118,8 +123,7 @@ python main.py
 lightrag-service/
 ├── Dockerfile           # Imagen Docker para Railway
 ├── requirements.txt     # Dependencias Python
-├── main.py             # Servidor FastAPI
-├── pinecone_storage.py # Conector LightRAG → Pinecone
+├── main.py             # Servidor FastAPI + LightRAG
 └── README.md           # Esta documentación
 ```
 
@@ -129,6 +133,7 @@ Añadir nodo HTTP Request después de "Merge Data":
 
 - **URL**: `https://tu-app.up.railway.app/ingest`
 - **Method**: POST
+- **Headers**: `x-api-key: ={{$env.LIGHTRAG_API_KEY}}`
 - **Body**: JSON con `text` y `metadata`
 
-Ver [implementation_plan.md](../implementation_plan.md) para detalles completos.
+> ⚠️ **Importante**: Configura "Split In Batches" con Batch Size = 1 para evitar corrupción del grafo por escrituras concurrentes.
