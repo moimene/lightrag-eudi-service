@@ -83,11 +83,13 @@ try:
     print("[INFO] LightRAG imported successfully")
 except ImportError as e:
     print(f"[WARNING] LightRAG import failed: {e}")
-    print("[INFO] Service will run in degraded mode (health checks only)")
+    # Fail-fast in production - don't run in degraded mode
+    raise RuntimeError(f"LightRAG failed to initialize - aborting startup: {e}")
 except Exception as e:
     print(f"[ERROR] Unexpected error importing LightRAG: {e}")
     import traceback
     traceback.print_exc()
+    raise RuntimeError(f"LightRAG failed to initialize - aborting startup: {e}")
 
 
 # =============================================================================
