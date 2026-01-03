@@ -1,7 +1,7 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 lightrag-hku==1.4.9rc4
-pinecone-client>=3.0.0
+pinecone>=5.0.0
 numpy>=1.24.0,<2.0.0
 pydantic>=2.0.0
 openai>=1.0.0
