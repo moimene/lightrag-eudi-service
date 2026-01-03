@@ -11,6 +11,7 @@ Vectors are stored in Pinecone using namespace separation.
 import os
 import sys
 import asyncio
+import secrets
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -195,6 +196,9 @@ def get_rag_instance():
 _rag_init_lock = None
 _rag_initialized = False
 
+# Ingestion lock to serialize document processing (prevents file corruption)
+_ingest_lock = None
+
 
 async def ensure_rag_initialized():
     """
@@ -278,40 +282,49 @@ async def process_ingest(text: str, metadata: Dict[str, Any]) -> None:
     """
     Background task to ingest document into knowledge graph.
     Uses async ainsert for LightRAG 1.4.9rc4 compatibility.
+    Serialized with lock to prevent file corruption from concurrent writes.
     """
+    global _ingest_lock
+    
     rag = await ensure_rag_initialized()
     if rag is None:
         print("[ERROR] Cannot process ingestion - RAG not available")
         return
     
-    try:
-        source = metadata.get("source", "unknown")
-        filename = metadata.get("filename", "unnamed")
-        print(f"[INGEST START] Processing document: {filename} from {source}")
-        start_time = datetime.utcnow()
-        
-        # Prepend metadata context if available
-        context_prefix = ""
-        if metadata.get("summary"):
-            context_prefix += f"Summary: {metadata['summary']}\n\n"
-        if metadata.get("keywords"):
-            keywords = metadata["keywords"]
-            if isinstance(keywords, list):
-                keywords = ", ".join(keywords)
-            context_prefix += f"Keywords: {keywords}\n\n"
-        
-        enriched_text = context_prefix + text if context_prefix else text
-        
-        # Use async insert (required by LightRAG 1.4.9rc4)
-        await rag.ainsert(enriched_text)
-        
-        elapsed = (datetime.utcnow() - start_time).total_seconds()
-        print(f"[INGEST COMPLETE] {filename} processed in {elapsed:.1f}s")
-        
-    except Exception as e:
-        print(f"[INGEST ERROR] Failed to process document: {e}")
-        import traceback
-        traceback.print_exc()
+    # Create ingestion lock lazily
+    if _ingest_lock is None:
+        _ingest_lock = asyncio.Lock()
+    
+    # Serialize ingestion to prevent file corruption
+    async with _ingest_lock:
+        try:
+            source = metadata.get("source", "unknown")
+            filename = metadata.get("filename", "unnamed")
+            print(f"[INGEST START] Processing document: {filename} from {source}")
+            start_time = datetime.utcnow()
+            
+            # Prepend metadata context if available
+            context_prefix = ""
+            if metadata.get("summary"):
+                context_prefix += f"Summary: {metadata['summary']}\n\n"
+            if metadata.get("keywords"):
+                keywords = metadata["keywords"]
+                if isinstance(keywords, list):
+                    keywords = ", ".join(keywords)
+                context_prefix += f"Keywords: {keywords}\n\n"
+            
+            enriched_text = context_prefix + text if context_prefix else text
+            
+            # Use async insert (required by LightRAG 1.4.9rc4)
+            await rag.ainsert(enriched_text)
+            
+            elapsed = (datetime.utcnow() - start_time).total_seconds()
+            print(f"[INGEST COMPLETE] {filename} processed in {elapsed:.1f}s")
+            
+        except Exception as e:
+            print(f"[INGEST ERROR] Failed to process document: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 # =============================================================================
