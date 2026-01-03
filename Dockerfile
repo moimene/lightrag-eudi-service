@@ -38,13 +38,8 @@ RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-# Railway will set PORT automatically
+# Railway sets PORT dynamically, default to 8000
 ENV PORT=8000
-EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
-
-# Start the service
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use shell form to allow $PORT expansion
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
