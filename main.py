@@ -43,9 +43,8 @@ llm_model_func = None
 embedding_func = None
 
 try:
-    from lightrag import LightRAG as LR
+    from lightrag import LightRAG as LR, EmbeddingFunc
     from lightrag.llm.openai import openai_complete_if_cache, openai_embed
-    from lightrag.utils import wrap_embedding_func_with_attrs
     import numpy as np
     
     LightRAG = LR
@@ -64,21 +63,20 @@ try:
             **kwargs
         )
     
-    # Create embedding function with correct attributes
-    @wrap_embedding_func_with_attrs(
-        embedding_dim=1536, 
-        max_token_size=8192, 
-        model_name="text-embedding-3-small"
-    )
-    async def embed_func(texts: list) -> np.ndarray:
-        return await openai_embed.func(
+    # Create embedding function wrapper
+    async def embed_texts(texts: list) -> np.ndarray:
+        return await openai_embed(
             texts,
             model="text-embedding-3-small",
             api_key=os.getenv("OPENAI_API_KEY")
         )
     
     llm_model_func = llm_func
-    embedding_func = embed_func
+    embedding_func = EmbeddingFunc(
+        embedding_dim=1536,
+        max_token_size=8192,
+        func=embed_texts
+    )
     
     LIGHTRAG_AVAILABLE = True
     print("[INFO] LightRAG imported successfully")
