@@ -43,7 +43,8 @@ llm_model_func = None
 embedding_func = None
 
 try:
-    from lightrag import LightRAG as LR, EmbeddingFunc
+    from lightrag import LightRAG as LR
+    from lightrag.utils import EmbeddingFunc
     from lightrag.llm.openai import openai_complete_if_cache, openai_embed
     import numpy as np
     
