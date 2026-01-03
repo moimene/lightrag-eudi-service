@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
@@ -34,6 +34,30 @@ os.makedirs(WORKDIR, exist_ok=True)
 NAMESPACE_ENTITIES = os.getenv("PINECONE_NS_ENTITIES", "liquid_entities")
 NAMESPACE_RELATIONS = os.getenv("PINECONE_NS_RELATIONS", "liquid_relations")
 NAMESPACE_CHUNKS = os.getenv("PINECONE_NS_CHUNKS", "liquid_chunks")
+
+# API Key for authentication (set in Railway environment)
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "")
+
+
+# =============================================================================
+# Security: API Key Authentication
+# =============================================================================
+
+async def verify_api_key(x_api_key: str = Header(None)):
+    """
+    Verify API key for protected endpoints.
+    If SERVICE_API_KEY is not set, authentication is disabled (dev mode).
+    """
+    if not SERVICE_API_KEY:
+        # No key configured = dev mode, allow all
+        return True
+    
+    if x_api_key != SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API Key. Set 'x-api-key' header."
+        )
+    return True
 
 # =============================================================================
 # LightRAG Import (with graceful fallback)
@@ -312,7 +336,7 @@ async def health_check():
     )
 
 
-@app.post("/ingest", response_model=IngestResponse)
+@app.post("/ingest", response_model=IngestResponse, dependencies=[Depends(verify_api_key)])
 async def ingest_endpoint(req: IngestRequest, background_tasks: BackgroundTasks):
     """
     Ingest a document into the knowledge graph.
@@ -338,7 +362,7 @@ async def ingest_endpoint(req: IngestRequest, background_tasks: BackgroundTasks)
     )
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_api_key)])
 async def query_endpoint(req: QueryRequest):
     """Query the knowledge graph."""
     rag = await ensure_rag_initialized()
