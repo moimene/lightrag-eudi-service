@@ -1,0 +1,599 @@
+{
+  "name": "Pinecone Assistant UNIFICADO (Drive Auto Ingest + Enrichment + LightRAG)",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1BGWrD72h3aQjvzCCDLqLPI7OOVjMgv3U"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "041cd8f3-74d3-4262-8b11-0eb8dff88661",
+      "name": "Watch Google Drive Folder",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        13264,
+        2624
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "hX4rKlDj2M6G5Bak",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{$json.id}}",
+        "options": {}
+      },
+      "id": "f81cd09a-5b4c-47a1-a1c6-b8b27a587f09",
+      "name": "Google Drive - Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        13488,
+        2624
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "hX4rKlDj2M6G5Bak",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "={{$json.fileName || 'documento_drive.md'}}"
+        }
+      },
+      "id": "f3676f7e-808a-46dd-93a9-110f32b274de",
+      "name": "Convert to Text File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        13264,
+        2952
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://prod-1-data.ke.pinecone.io/assistant/files/ddpineconetest",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "pineconeApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "source_tag=n8n:drive_autotrigger"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a57e85fe-2f33-4114-abf5-406cb82f7583",
+      "name": "Upload File to Pinecone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        13936,
+        2720
+      ],
+      "credentials": {
+        "pineconeApi": {
+          "id": "YFFDGC7rzWdExFfv",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pbuxthemdxeyuzpxajdh.supabase.co/functions/v1/ingest-plan",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.source }}"
+            },
+            {
+              "name": "metadata",
+              "value": "={{ $json.metadata }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f399b4f2-23ee-41c7-831d-2592de64b6c8",
+      "name": "Supabase ingest-plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        14608,
+        2624
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "MmNrd7JmDrLO5IzN",
+          "name": "Supabase account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.2",
+          "mode": "list",
+          "cachedResultName": "gpt-5.2"
+        },
+        "options": {}
+      },
+      "id": "49c5ac84-1fa1-4f5a-9add-6bf1fafcd42a",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        14840,
+        2848
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "nT0RtvcxO6UNkm7q",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "endpointUrl": "https://prod-1-data.ke.pinecone.io/mcp/assistants/ddpineconetest",
+        "serverTransport": "httpStreamable",
+        "authentication": "bearerAuth",
+        "options": {}
+      },
+      "id": "07e41c90-3130-45b3-8d81-77a963d85f59",
+      "name": "Pinecone Assistant (Tool)",
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.1,
+      "position": [
+        14968,
+        2848
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "zVnxXIgMFbSVLPwq",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Enrich this document with metadata",
+        "options": {
+          "systemMessage": "Actúas como motor de enriquecimiento (CorpusEnrichment v1.1) para documentos de Google Drive indexados en Pinecone Assistant. Devuelve solo JSON válido con summary, keywords, governance y provenance."
+        }
+      },
+      "id": "c65f8b47-760d-4ba6-b416-c1c8639c868d",
+      "name": "AI Enrichment Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        14832,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pbuxthemdxeyuzpxajdh.supabase.co/functions/v1/ingest-finalize",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "<__PLACEHOLDER_VALUE__Supabase API Key__>"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer <__PLACEHOLDER_VALUE__Supabase API Key__>"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "item_id",
+              "value": "={{ $node['Supabase ingest-plan'].json.item_id }}"
+            },
+            {
+              "name": "action",
+              "value": "available"
+            },
+            {
+              "name": "assistant_file_id",
+              "value": "={{ $node['Upload File to Pinecone'].json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e893dc7f-4367-4e2e-a848-8d7a9d84a8ae",
+      "name": "Supabase ingest-finalize",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        15184,
+        2624
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "MmNrd7JmDrLO5IzN",
+          "name": "Supabase account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "a5b9bac0-5bcb-4dec-8913-e73101f8f84a",
+      "name": "Extract PDF Text1",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        13936,
+        2528
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "source",
+              "value": "google_drive",
+              "type": "string"
+            },
+            {
+              "name": "drive_file_id",
+              "value": "={{$('Google Drive - Download File').item.json.id}}",
+              "type": "string"
+            },
+            {
+              "name": "drive_file_name",
+              "value": "={{$('Google Drive - Download File').item.json.name}}",
+              "type": "string"
+            },
+            {
+              "name": "source_url",
+              "value": "={{'https://drive.google.com/file/d/' + $('Google Drive - Download File').item.json.id}}",
+              "type": "string"
+            },
+            {
+              "name": "modified_time",
+              "value": "={{$('Google Drive - Download File').item.json.modifiedTime || new Date().toISOString()}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f004f47a-43d1-4387-a2fd-7588744cbd00",
+      "name": "Add Metadata1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        13712,
+        2720
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "3369ca25-eef9-4574-8e9f-77e3ced84d05",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        14160,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const extractText = $node['Extract PDF Text1'].json;\nconst metadata = $node['Add Metadata1'].json;\n\nreturn {\n  json: {\n    content: extractText.text,\n    source: {\n      type: 'google_drive',\n      url: metadata.source_url\n    },\n    metadata: {\n      drive_file_id: metadata.drive_file_id,\n      drive_file_name: metadata.drive_file_name\n    }\n  }\n};"
+      },
+      "id": "91002041-9356-4847-98e7-eaa1a7371f5f",
+      "name": "Build Supabase Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14384,
+        2624
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "lightrag-batch-001",
+      "name": "Split In Batches (LightRAG)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        14608,
+        2824
+      ],
+      "notes": "Serializa documentos para LightRAG. Batch Size = 1 evita corrupción de nano-vectordb."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://lightrag-eudi-service-production.up.railway.app/ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{$env.LIGHTRAG_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{ JSON.stringify($json.content) }},\n  \"metadata\": {\n    \"source\": \"google_drive\",\n    \"filename\": {{ JSON.stringify($json.metadata.drive_file_name) }},\n    \"drive_file_id\": {{ JSON.stringify($json.metadata.drive_file_id) }},\n    \"doc_id\": {{ JSON.stringify($json.metadata.drive_file_id + '_' + ($json.metadata.modified_time || 'v1')) }},\n    \"modified_time\": {{ JSON.stringify($json.metadata.modified_time || new Date().toISOString()) }}\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "lightrag-ingest-001",
+      "name": "LightRAG Ingest (Vía B - Grafo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        14832,
+        2824
+      ],
+      "notes": "Envía documento al microservicio LightRAG en Railway. Procesa en background, responde inmediatamente."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Watch Google Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Google Drive - Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive - Download File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Add Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase ingest-plan": {
+      "main": [
+        [
+          {
+            "node": "AI Enrichment Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Enrichment Agent": {
+      "main": [
+        [
+          {
+            "node": "Supabase ingest-finalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Enrichment Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Assistant (Tool)": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Enrichment Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Metadata1": {
+      "main": [
+        [
+          {
+            "node": "Upload File to Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text1": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload File to Pinecone": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Build Supabase Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Supabase Payload": {
+      "main": [
+        [
+          {
+            "node": "Supabase ingest-plan",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split In Batches (LightRAG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches (LightRAG)": {
+      "main": [
+        [
+          {
+            "node": "LightRAG Ingest (Vía B - Grafo)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "LightRAG Ingest (Vía B - Grafo)": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches (LightRAG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bifurcation-lightrag-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e30f3d921a61d3f73e3eabe4fb1f4cfa51dfa5c1aaf9fb23188d4bcf355ee15a"
+  },
+  "id": "xNAkiwuRUk6J5ga6",
+  "tags": [
+    "lightrag",
+    "knowledge-graph",
+    "hybrid-rag"
+  ]
+}

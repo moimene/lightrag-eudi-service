@@ -120,20 +120,19 @@ python main.py
 ## 📁 Estructura
 
 ```
-LightRag_EUDIW_assistan/
-├── lightrag-service/
-│   ├── Dockerfile           # Imagen Docker para Railway
-│   ├── requirements.txt     # Dependencias Python
-│   ├── main.py             # Servidor FastAPI + LightRAG
-│   └── README.md           # Esta documentación
-├── n8n-workflow-PRODUCTION.json  # ← Workflow n8n válido
-├── smoke_test_ingest.sh          # Script de pruebas
-└── _archive/                     # Workflows obsoletos
+lightrag-service/
+├── Dockerfile               # Imagen Docker para Railway
+├── requirements.txt         # Dependencias Python
+├── main.py                 # Servidor FastAPI + LightRAG
+├── README.md               # Esta documentación
+├── smoke_test_ingest.sh    # Script de pruebas
+└── n8n/
+    └── n8n-workflow-PRODUCTION.json  # ← Workflow n8n válido
 ```
 
 ## 🔗 Integración con n8n
 
-**Workflow válido**: [`n8n-workflow-PRODUCTION.json`](file:///Users/moisesmenendez/LightRag_EUDIW_assistan/n8n-workflow-PRODUCTION.json)
+**Workflow válido**: [`n8n/n8n-workflow-PRODUCTION.json`](./n8n/n8n-workflow-PRODUCTION.json)
 
 Para importar:
 1. n8n → Settings → Import from File
