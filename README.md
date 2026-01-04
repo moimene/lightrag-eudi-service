@@ -120,23 +120,33 @@ python main.py
 ## 📁 Estructura
 
 ```
-lightrag-service/
-├── Dockerfile           # Imagen Docker para Railway
-├── requirements.txt     # Dependencias Python
-├── main.py             # Servidor FastAPI + LightRAG
-└── README.md           # Esta documentación
+LightRag_EUDIW_assistan/
+├── lightrag-service/
+│   ├── Dockerfile           # Imagen Docker para Railway
+│   ├── requirements.txt     # Dependencias Python
+│   ├── main.py             # Servidor FastAPI + LightRAG
+│   └── README.md           # Esta documentación
+├── n8n-workflow-PRODUCTION.json  # ← Workflow n8n válido
+├── smoke_test_ingest.sh          # Script de pruebas
+└── _archive/                     # Workflows obsoletos
 ```
 
 ## 🔗 Integración con n8n
 
-Añadir nodo HTTP Request después de "Merge Data":
+**Workflow válido**: [`n8n-workflow-PRODUCTION.json`](file:///Users/moisesmenendez/LightRag_EUDIW_assistan/n8n-workflow-PRODUCTION.json)
 
-- **URL**: `https://tu-app.up.railway.app/ingest`
+Para importar:
+1. n8n → Settings → Import from File
+2. Añade variable `LIGHTRAG_API_KEY` en n8n Settings → Variables
+
+### Configuración del nodo LightRAG Ingest:
+
+- **URL**: `https://lightrag-eudi-service-production.up.railway.app/ingest`
 - **Method**: POST
 - **Headers**: `x-api-key: ={{$env.LIGHTRAG_API_KEY}}`
-- **Body**: JSON con `text` y `metadata`
+- **Body**: JSON con `text` y `metadata` (incluye `doc_id` para idempotencia)
 
-> ⚠️ **Importante**: Configura "Split In Batches" con Batch Size = 1 para evitar corrupción del grafo por escrituras concurrentes.
+> ⚠️ **Importante**: El workflow incluye "Split In Batches" con Batch Size = 1 para evitar corrupción del grafo.
 
 ### Timeouts Recomendados
 
@@ -146,3 +156,4 @@ Añadir nodo HTTP Request después de "Merge Data":
 | `/query` | **300s** | LightRAG puede tardar 20-60s en Hybrid Search |
 
 En n8n: HTTP Request → Settings → Timeout = 300000 (ms)
+
